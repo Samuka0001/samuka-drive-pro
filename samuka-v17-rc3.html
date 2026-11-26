@@ -272,8 +272,8 @@ function uploadDate17(d=new Date()){return String(d.getDate()).padStart(2,'0')+'
 function videoUpload17(f){return /^video\//i.test(f.type||'')||/\.(mov|mp4|m4v|mkv|webm|avi|mpeg|mpg|3gp|3g2|mts|m2ts|wmv|flv|ts|ogv|vob|mxf|asf|rm|rmvb)$/i.test(f.name||'')}
 function extensionUpload17(f){return /\.[a-z0-9]{1,12}$/i.exec(f.name||'')?.[0]||({'video/mp4':'.mp4','video/quicktime':'.mov','video/webm':'.webm','video/x-matroska':'.mkv','video/mpeg':'.mpeg','video/x-msvideo':'.avi','video/3gpp':'.3gp','video/3gpp2':'.3g2','video/mp2t':'.ts','video/ogg':'.ogv'})[(f.type||'').toLowerCase()]||''}
 function uploadName17(t){return t.uploadName||t.f.name}
-function formatUploadName17(mode,n,date,ext){return '@samucamidias '+n+(mode==='date'?' - '+date:'')+ext}
-function nextUploadNumber17(names,mode,date){let max=0;for(const name of names){const match=/^@samucamidias (\d+)(?: - (\d{2}-\d{2}-\d{4}))?(?:\.[a-z0-9]{1,12})?$/i.exec(name);if(!match)continue;if(mode==='date'?match[2]!==date:!!match[2])continue;const n=Number(match[1]);if(!Number.isSafeInteger(n)||n>=Number.MAX_SAFE_INTEGER-1)throw Error('Numeração excede o limite seguro.');max=Math.max(max,n)}return max+1}
+function formatUploadName17(mode,n,date,ext){return '@samukamidias '+n+(mode==='date'?' - '+date:'')+ext}
+function nextUploadNumber17(names,mode,date){let max=0;for(const name of names){const match=/^@samu[ck]amidias (\d+)(?: - (\d{2}-\d{2}-\d{4}))?(?:\.[a-z0-9]{1,12})?$/i.exec(name);if(!match)continue;if(mode==='date'?match[2]!==date:!!match[2])continue;const n=Number(match[1]);if(!Number.isSafeInteger(n)||n>=Number.MAX_SAFE_INTEGER-1)throw Error('Numeração excede o limite seguro.');max=Math.max(max,n)}return max+1}
 async function prepareUploadName17(t){
  if(!videoUpload17(t.f)||t.session)return;
  const acct=t.uploadAccount;if(!acct||acct!==accountKey)throw Error('Conta alterada durante a preparação do nome.');
@@ -321,7 +321,7 @@ function uploadDestination17(){
  const acct=accountKey,b=modal('Destino do upload'),dialog=$('modal'),line=el('p','Escolha a pasta antes de selecionar os arquivos.','notice'),trailText=el('p','','notice'),navBar=el('div',null,'row'),list=el('div'),note=el('p','','muted'),picker=el('input');
  picker.type='file';picker.multiple=true;picker.hidden=true;
  const naming=el('select'),example=el('p','','muted');naming.setAttribute('aria-label','Padrão de nome dos vídeos');
- for(const [v,label] of [['number','@samucamidias 1, 2, 3…'],['date','@samucamidias 1 - data, 2 - data…']]){const o=el('option',label);o.value=v;naming.append(o)}
+ for(const [v,label] of [['number','@samukamidias 1, 2, 3…'],['date','@samukamidias 1 - data, 2 - data…']]){const o=el('option',label);o.value=v;naming.append(o)}
  naming.value=uploadPreset17();function updateNamePreview(){example.textContent='Exemplo: '+formatUploadName17(naming.value,1,uploadDate17(),'.mp4')+' · numeração por pasta; fotos e documentos mantêm o nome.';}
  naming.onchange=()=>{if(accountKey!==acct)return;naming.value=normalizePreset17(naming.value);prefs12.uploadPreset17=naming.value;save13();updateNamePreview()};updateNamePreview();
  let trail=path.map(x=>({...x})),serial=0,chosen=null,snapshot=null,picking=false;
