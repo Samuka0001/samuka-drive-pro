@@ -1,0 +1,9 @@
+SAMUKA ESTÚDIO • WINDOWS
+
+1. Extraia o projeto em uma pasta permanente. Abra estudio/windows/Instalar.cmd. Ele usa o winget para instalar Python, FFmpeg, yt-dlp, Deno e rclone. Confira o resultado de cada instalação.
+2. Abra samuka-beta.html pelo endereço HTTPS do seu GitHub Pages depois da publicação. Escolha Estúdio > Conectar Google. Em Configurar Windows, copie o código da fila. Mantenha a pasta de fila privada, em Meu Drive.
+3. No PC, abra Configurar.cmd. Autorize o rclone no navegador com a MESMA conta Google usada no Estúdio e cole o código da fila na janela. Use apenas um computador por fila. O código identifica a pasta. O login Google concede o acesso.
+4. Deixe a janela do programa aberta e o PC conectado e acordado. Depois da configuração inicial, use Iniciar.cmd. Se quiser iniciar junto com sua sessão, coloque um atalho de Iniciar.cmd na pasta shell:startup (Win + R).
+5. No iPhone, cole links de vídeos do YouTube que você pode baixar. Abra a pasta desejada no seletor e toque em Adicionar à fila. Os pedidos ficam no Drive mesmo com o PC desligado. Esta versão trabalha com pastas de Meu Drive.
+6. Para cortar, selecione Abrir vídeo em um item pronto. A prévia carrega o arquivo no aparelho, então comece com um vídeo curto. Marque início e fim, selecione a pasta e toque em Salvar corte no Drive. O PC lê o original pela pasta e pelo nome registrados, então mantenha o original nessa pasta até terminar.
+7. Se um pedido falhar, confira a mensagem na janela do Windows e use Tentar novamente no item. Downloads dependem do acesso e dos formatos disponíveis no YouTube. A beta prioriza MP4 compatível com iPhone até 1080p. O processamento é sequencial.
