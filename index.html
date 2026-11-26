@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Samuka Drive Pro | Conexão</title>
+<style>
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#101013;color:#f3f1f8}*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px}main{max-width:440px;width:100%;background:#19191f;border:1px solid #34313e;border-radius:26px;padding:26px}small{color:#b9a5fa;letter-spacing:.14em;font-weight:700}h1{font-size:29px;letter-spacing:-1px;margin:10px 0}p{color:#bcb9c7;line-height:1.5}button{font:inherit;font-weight:700;background:#c5b2ff;color:#1b132c;border:0;border-radius:14px;padding:15px;width:100%;margin-top:10px}button.secondary{background:#292831;color:#f3f1f8}button:disabled{opacity:.45}#status{white-space:pre-wrap;overflow-wrap:anywhere;background:#111116;border-radius:14px;padding:15px;margin:18px 0 0;line-height:1.5;color:#ddd6ef}footer{margin-top:20px;font-size:12px;color:#a7a3b1}
+</style>
+</head><body><main><small>SAMUKA PREMIUM · TESTE 01</small><h1>Samuka Drive Pro.</h1><p>Teste de conexão com o Google Drive. Nenhum arquivo será criado, modificado ou excluído.</p><button id="connect" disabled>Conectar com Google</button><button id="disconnect" class="secondary" disabled>Revogar acesso</button><div id="status" role="status" aria-live="polite">Carregando autorização do Google…</div><footer>O token fica somente na memória desta página. Não é enviado ao GitHub nem salvo no navegador.</footer></main>
+<script>
+'use strict';
+const CLIENT_ID='284735647572-fjbiid4k7abis5nlieg9nv8jq0jus6rf.apps.googleusercontent.com';
+const SCOPE='https://www.googleapis.com/auth/drive.file';
+const connect=document.getElementById('connect'), disconnect=document.getElementById('disconnect'), status=document.getElementById('status');
+let client=null, token=null;
+function show(message){status.textContent=message;}
+function ready(){try{client=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,include_granted_scopes:false,callback:async response=>{connect.disabled=false;if(response.error){show('Autorização não concluída: '+response.error);return;}if(!response.access_token||!google.accounts.oauth2.hasGrantedAllScopes(response,SCOPE)){show('Permissão não concedida. Tente novamente.');return;}token=response.access_token;disconnect.disabled=false;show('Autorizado. Verificando a API…');try{const r=await fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName),storageQuota(limit,usage)',{headers:{Authorization:'Bearer '+token},cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const data=await r.json();const q=data.storageQuota||{};const gb=x=>Number.isFinite(Number(x))?(Number(x)/1e9).toLocaleString('pt-BR',{maximumFractionDigits:1})+' GB':'não informado';show('Conexão com o Drive aprovada!\nConta: '+(data.user?.displayName||'autorizada')+'\nArmazenamento utilizado: '+gb(q.usage)+'\nLimite: '+gb(q.limit)+'\n\nNenhum arquivo foi alterado.');}catch(e){show('OAuth autorizado, mas o teste da API falhou: '+e.message);}},error_callback:e=>{connect.disabled=false;show('Janela de autorização: '+(e.type||'erro')+'. Tente novamente.');}});connect.disabled=false;show('Pronto para conectar.');}catch(e){show('Falha na inicialização: '+e.message);}}
+connect.addEventListener('click',()=>{if(!client)return;connect.disabled=true;try{client.requestAccessToken({prompt:'consent'});}catch(e){connect.disabled=false;show('Falha ao abrir autorização: '+e.message);}});
+disconnect.addEventListener('click',()=>{if(!token)return;const old=token;token=null;disconnect.disabled=true;google.accounts.oauth2.revoke(old,r=>show(r?.successful?'Acesso revogado.':'Token local removido; não foi possível confirmar a revogação no Google.'));});
+</script><script src="https://accounts.google.com/gsi/client" async defer onload="ready()" onerror="show('Não foi possível carregar a biblioteca oficial do Google. Recarregue a página.')"></script></body></html>
