@@ -1,4 +1,4 @@
-const CACHE='samuka-v17-rc3-shell-5',ASSETS=['samuka-v17-rc3.html','samuka-v17-rc3.webmanifest','samuka-mono-192.png','samuka-mono-512.png','samuka-v17-rc-engine.html'].map(x=>new URL(x,self.registration.scope).href);
+const CACHE='samuka-v17-rc3-shell-6',ASSETS=['samuka-v17-rc3.html','samuka-v17-rc3.webmanifest','samuka-mono-192.png','samuka-mono-512.png','samuka-v17-rc-engine.html'].map(x=>new URL(x,self.registration.scope).href);
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('samuka-v17-rc3-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const u=new URL(e.request.url);u.search='';u.hash='';if(!ASSETS.includes(u.href))return;e.respondWith(fetch(e.request,{cache:'no-store'}).then(async r=>{if(r.ok){const c=await caches.open(CACHE);await c.put(u.href,r.clone())}return r}).catch(()=>caches.open(CACHE).then(c=>c.match(u.href)).then(r=>r||Response.error())))});
