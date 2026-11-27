@@ -113,7 +113,7 @@ async function refresh() {
   try {
     const files = await list("'"+queue+"' in parents"), byName = new Map(files.map(f => [f.name, f])), rows = []; let active = 0, ready = 0;
     const hb = byName.get('heartbeat.json'), on = hb && Date.now() - Date.parse(hb.modifiedTime) < 90000;
-    $('chip').textContent = on ? 'PC online' : 'PC offline'; $('chip').className = 'chip '+(on ? 'on' : 'off');
+    $('chip').textContent = on ? 'PC online' : 'PC offline'; $('chip').className = 'chip '+(on ? 'on' : 'off'); $('s1').className = 'ok'; $('s3').className = on ? 'ok' : '';
     for (const job of files.filter(f => /^job-[a-f0-9-]+\.json$/.test(f.name)).sort((a, b) => b.createdTime.localeCompare(a.createdTime))) {
       const status = byName.get(job.name.replace('job-', 'status-')); let s = {state:'Na fila'};
       if (status) {
