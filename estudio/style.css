@@ -52,3 +52,12 @@ select{appearance:none;-webkit-appearance:none;border-radius:99px;padding-right:
 .folders button,.crumbs button{border-radius:99px}
 .bar{height:10px}.bar b{position:relative;animation:none;background:linear-gradient(90deg,#9f7cff,#d6c4ff)}.bar b:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 1px 1px,rgba(255,255,255,.55) 1px,transparent 1.6px) 0 0/6px 6px;-webkit-mask:linear-gradient(90deg,transparent,#000 50%,#000);mask:linear-gradient(90deg,transparent,#000 50%,#000);animation:grain 1.4s linear infinite}@keyframes grain{to{background-position:12px 0}}
 .steps{list-style:none;padding:0;counter-reset:s}.steps li{counter-increment:s;position:relative;margin:8px 0;padding:12px 14px 12px 50px;background:var(--card);border:1px solid var(--line);border-radius:16px}.steps li:before{content:counter(s);position:absolute;left:14px;top:12px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#2a2731;font-size:14px}.steps li.ok{border-color:#4f9e69}.steps li.ok:before{content:"✓";background:#4f9e69;color:#10281a}.steps code{color:var(--acc2)}.steps input{margin-top:8px}
+
+.job{padding:16px;margin:12px 0;border:1px solid #48434e;border-radius:16px;background:#1c1b20;animation:none}
+.job p{color:#ddd8e4;font-size:1rem;font-variant-numeric:tabular-nums}
+.job .bar{clear:both;background:#47434c}.job button{min-height:44px}
+.light-effects{display:flex;align-items:center;gap:9px;min-height:44px;color:#e9e6ef}
+.light-effects input{width:20px;height:20px}
+.light-effects-on *,.light-effects-on *::before,.light-effects-on *::after{animation:none!important;transition:none!important;backdrop-filter:none!important}
+@media(prefers-reduced-motion:reduce){*::after{animation:none!important}}
+@media(max-width:430px){.job .thumb{width:82px;height:50px;margin-right:10px}.job strong{font-size:1rem}}

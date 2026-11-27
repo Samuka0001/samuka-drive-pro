@@ -84,12 +84,30 @@ async function preview(s) {
   tl.style.backgroundImage = ''; if (s.strip) img(s.strip).then(u => tl.style.backgroundImage = 'url('+u+')').catch(() => {});
   tab('editor'); say('Prévia carregada.');
 }
+const lightEffects = $('lightEffects');
+try { lightEffects.checked = localStorage.getItem('samuka-light-effects') !== 'off'; } catch {}
+function applyEffects() {
+  document.documentElement.classList.toggle('light-effects-on', lightEffects.checked);
+}
+lightEffects.onchange = () => {
+  applyEffects();
+  try { localStorage.setItem('samuka-light-effects',lightEffects.checked ? 'on' : 'off'); } catch {}
+};
+applyEffects();
 function row(job, s) {
   const r = document.createElement('div'), l = document.createElement('strong'), i = document.createElement('p'); r.className = 'job';
   l.textContent = s.name || job.appProperties?.label || 'Vídeo';
-  i.textContent = s.state + (s.state === 'Baixando' && s.pct != null ? ` · ${Math.round(s.pct)}%${s.speed && !/Unknown/.test(s.speed) ? ' · '+s.speed : ''}${s.eta && !/Unknown/.test(s.eta) ? ' · falta '+s.eta : ''}` : '') + (s.error ? ' · '+s.error : '');
+  const pct = ['Baixando','Enviando ao Drive'].includes(s.state) && Number.isFinite(s.pct) ? Math.round(Math.max(0, Math.min(100,s.pct))) : null;
+  i.textContent = s.state + (pct !== null ? ` · ${pct}%${s.speed && !/Unknown/.test(s.speed) ? ' · '+s.speed : ''}${s.eta && !/Unknown/.test(s.eta) ? ' · falta '+s.eta : ''}` : '') + (s.error ? ' · '+s.error : '');
   if (s.dur) i.textContent += ' · '+fmt(s.dur);
   if (s.thumb) { const t = document.createElement('img'); t.className = 'thumb'; t.alt = ''; img(s.thumb).then(u => t.src = u).catch(() => t.remove()); r.append(t); }
+  else if (/^[A-Za-z0-9_-]{11}$/.test(job.appProperties?.label || '')) {
+    const cover = document.createElement('img');
+    cover.className = 'thumb'; cover.alt = ''; cover.loading = 'lazy'; cover.referrerPolicy = 'no-referrer';
+    cover.onerror = () => cover.remove();
+    cover.src = 'https://i.ytimg.com/vi/'+job.appProperties.label+'/mqdefault.jpg';
+    r.append(cover);
+  }
   r.append(l, i);
   let x0 = null;
   r.onpointerdown = e => { if (!e.target.closest('button')) x0 = e.clientX; };
@@ -99,7 +117,7 @@ function row(job, s) {
     if (d > 80 && s.file && !s.audio) preview(s).catch(x => say(x.message));
     else if (d < -80 && !DONE.includes(s.state) && confirm('Cancelar este pedido?')) submitCancel(job.name).then(() => say('Cancelamento pedido.')).catch(x => say(x.message));
   };
-  if (s.pct != null && s.state === 'Baixando') { const bar = document.createElement('div'), f = document.createElement('b'); bar.className = 'bar'; f.style.width = Math.min(100, s.pct)+'%'; bar.append(f); r.append(bar); }
+  if (pct !== null) { const bar = document.createElement('div'), f = document.createElement('b'); bar.className = 'bar'; f.style.width = pct+'%'; bar.append(f); r.append(bar); }
   if (!DONE.includes(s.state)) r.append(button('Cancelar', async () => { await submitCancel(job.name); say('Cancelamento pedido.'); }));
   if (s.file && !s.audio) r.append(button('Abrir vídeo', () => preview(s)));
   if (s.state === 'Falhou') r.append(button('Tentar novamente', async () => {
@@ -113,7 +131,7 @@ async function refresh() {
   try {
     const files = await list("'"+queue+"' in parents"), byName = new Map(files.map(f => [f.name, f])), rows = []; let active = 0, ready = 0;
     const hb = byName.get('heartbeat.json'), on = hb && Date.now() - Date.parse(hb.modifiedTime) < 90000;
-    $('chip').textContent = on ? 'PC online' : 'PC offline'; $('chip').className = 'chip '+(on ? 'on' : 'off'); $('s1').className = 'ok'; $('s3').className = on ? 'ok' : '';
+    $('chip').textContent = on ? 'PC online' : hb ? 'Último contato há '+Math.max(1,Math.floor((Date.now()-Date.parse(hb.modifiedTime))/60000))+' min' : 'Aguardando o PC'; $('chip').className = 'chip '+(on ? 'on' : 'off'); $('s1').className = 'ok'; $('s3').className = on ? 'ok' : '';
     for (const job of files.filter(f => /^job-[a-f0-9-]+\.json$/.test(f.name)).sort((a, b) => b.createdTime.localeCompare(a.createdTime))) {
       const status = byName.get(job.name.replace('job-', 'status-')); let s = {state:'Na fila'};
       if (status) {

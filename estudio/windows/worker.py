@@ -54,6 +54,34 @@ def drive(folder, *args):
     return run(["rclone", *map(str, args), "--drive-root-folder-id", folder])
 
 
+def upload_video(queue, job, temp, dest, name, output):
+    args = ["rclone", "copyto", str(output), REMOTE + name, "--drive-root-folder-id", dest,
+            "--stats", "8s", "--stats-log-level", "NOTICE", "--use-json-log"]
+    with subprocess.Popen(args, stderr=subprocess.PIPE, encoding="utf-8", errors="replace") as proc:
+        last_error = ""
+        last_pct = -1
+        try:
+            for line in proc.stderr:
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if record.get("level") == "error":
+                    last_error = record.get("msg", "")
+                stats = record.get("stats") or {}
+                total = stats.get("totalBytes") or 0
+                if total > 0:
+                    pct = min(99, int(100 * stats.get("bytes", 0) / total))
+                    if pct != last_pct:
+                        write(queue, job, {"state":"Enviando ao Drive", "name":name, "pct":pct}, temp)
+                        last_pct = pct
+            if proc.wait():
+                raise RuntimeError(last_error or "Falha no envio ao Drive.")
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+
+
 def read(queue, name):
     return json.loads(drive(queue, "cat", REMOTE + name))
 
@@ -170,7 +198,7 @@ def process(queue, job, temp):
         write(queue, job, {"state": "Gerando prévia", "name": name}, temp)
         extra.update(make_proxy(queue, job, output, temp))
     write(queue, job, {"state": "Enviando ao Drive", "name": name}, temp)
-    drive(dest, "copyto", output, REMOTE+name)
+    upload_video(queue, job, temp, dest, name, output)
     item = json.loads(drive(dest, "lsjson", "--stat", REMOTE+name))
     write(queue, job, {"state":"Pronto no Drive","file":item["ID"],"job":job,"dest":dest,"name":name,"audio":audio,**extra}, temp)
 
