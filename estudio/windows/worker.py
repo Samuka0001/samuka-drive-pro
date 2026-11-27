@@ -108,21 +108,6 @@ def cancelled(queue, job):
     return bool(drive(queue, "lsf", REMOTE, "--include", f"cancel-{job}.json").strip())
 
 
-def make_proxy(queue, job, source, temp):
-    """Prévia 480p + miniatura + tira de quadros para a linha do tempo."""
-    out, strip, thumb = temp / "proxy.mp4", temp / "strip.jpg", temp / "thumb.jpg"
-    ff = ["ffmpeg", "-nostdin", "-loglevel", "error", "-y"]
-    run(ff + ["-i", str(source), "-vf", "scale=-2:480", "-c:v", "libx264", "-preset", "veryfast", "-crf", "30",
-              "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "64k", "-movflags", "+faststart", str(out)])
-    dur = float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)]).strip())
-    run(ff + ["-i", str(out), "-vf", f"fps=12/{max(dur, 1)},scale=-2:72,tile=12x1", "-frames:v", "1", str(strip)])
-    run(ff + ["-ss", str(min(1, dur / 2)), "-i", str(out), "-frames:v", "1", "-vf", "scale=-2:96", str(thumb)])
-    ids = {}
-    for key, path, name in (("proxy", out, f"preview-{job}.mp4"), ("strip", strip, f"strip-{job}.jpg"), ("thumb", thumb, f"thumb-{job}.jpg")):
-        drive(queue, "copyto", path, REMOTE + name)
-        ids[key] = json.loads(drive(queue, "lsjson", "--stat", REMOTE + name))["ID"]
-    return {**ids, "dur": dur}
-
 
 def hms(v):
     v = int(v)
@@ -148,7 +133,6 @@ def process(queue, job, temp):
     audio = data.get("q") == "audio"
     height = {"720": 720, "480": 480}.get(str(data.get("q")), 1080)
     output = temp / ("media.m4a" if audio else "media.mp4")
-    extra = {}
 
     def tick(pct, speed, eta):
         write(queue, job, {"state": "Baixando", "pct": pct, "speed": speed, "eta": eta}, temp)
@@ -194,13 +178,10 @@ def process(queue, job, temp):
     else:
         raise ValueError("Tipo de pedido desconhecido.")
     name = f"{label} ({job}){output.suffix}"
-    if not audio:
-        write(queue, job, {"state": "Gerando prévia", "name": name}, temp)
-        extra.update(make_proxy(queue, job, output, temp))
     write(queue, job, {"state": "Enviando ao Drive", "name": name}, temp)
     upload_video(queue, job, temp, dest, name, output)
     item = json.loads(drive(dest, "lsjson", "--stat", REMOTE+name))
-    write(queue, job, {"state":"Pronto no Drive","file":item["ID"],"job":job,"dest":dest,"name":name,"audio":audio,**extra}, temp)
+    write(queue, job, {"state":"Pronto no Drive","file":item["ID"],"job":job,"dest":dest,"name":name,"audio":audio}, temp)
 
 
 def cycle(queue, completed):
@@ -257,7 +238,7 @@ def main():
             except Exception:
                 pass
         threading.Thread(target=heartbeat, args=(queue,), daemon=True).start()
-        print("Samuka Estúdio conectado. Deixe esta janela aberta.", flush=True)
+        print("Samuka Estúdio conectado (sem prévia automática). Deixe esta janela aberta.", flush=True)
         while True:
             try:
                 cycle(queue, completed)

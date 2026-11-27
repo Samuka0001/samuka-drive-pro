@@ -75,14 +75,14 @@ action('send', async () => {
 });
 function button(text, fn) { const b = document.createElement('button'); b.textContent = text; b.onclick = async () => { b.disabled = true; try { await fn(); } catch (e) { say(e.message); } finally { b.disabled = false; } }; return b; }
 async function preview(s) {
-  const current = session; say('Carregando a prévia…');
-  const blob = await (await req(api+'/'+encodeURIComponent(s.proxy || s.file)+'?alt=media')).blob();
+  const current = session; say('Carregando o vídeo original…');
+  const blob = await (await req(api+'/'+encodeURIComponent(s.file)+'?alt=media')).blob();
   if (current !== session) return;
   if (previewUrl) URL.revokeObjectURL(previewUrl);
   previewUrl = URL.createObjectURL(blob); selected = s; $('video').src = previewUrl; $('title').textContent = s.name; $('start').value = 0;
   $('video').onloadedmetadata = () => { $('end').value = Math.floor($('video').duration*100)/100; paint(); };
-  tl.style.backgroundImage = ''; if (s.strip) img(s.strip).then(u => tl.style.backgroundImage = 'url('+u+')').catch(() => {});
-  tab('editor'); say('Prévia carregada.');
+  tl.style.backgroundImage = '';
+  tab('editor'); say('Vídeo original carregado.');
 }
 const lightEffects = $('lightEffects');
 try { lightEffects.checked = localStorage.getItem('samuka-light-effects') !== 'off'; } catch {}
@@ -100,7 +100,6 @@ function row(job, s) {
   const pct = ['Baixando','Enviando ao Drive'].includes(s.state) && Number.isFinite(s.pct) ? Math.round(Math.max(0, Math.min(100,s.pct))) : null;
   i.textContent = s.state + (pct !== null ? ` · ${pct}%${s.speed && !/Unknown/.test(s.speed) ? ' · '+s.speed : ''}${s.eta && !/Unknown/.test(s.eta) ? ' · falta '+s.eta : ''}` : '') + (s.error ? ' · '+s.error : '');
   if (s.dur) i.textContent += ' · '+fmt(s.dur);
-  if (s.thumb) { const t = document.createElement('img'); t.className = 'thumb'; t.alt = ''; img(s.thumb).then(u => t.src = u).catch(() => t.remove()); r.append(t); }
   else if (/^[A-Za-z0-9_-]{11}$/.test(job.appProperties?.label || '')) {
     const cover = document.createElement('img');
     cover.className = 'thumb'; cover.alt = ''; cover.loading = 'lazy'; cover.referrerPolicy = 'no-referrer';
