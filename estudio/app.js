@@ -125,6 +125,34 @@ function row(job, s) {
   return r;
 }
 const submitCancel = async name => req('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {method:'POST', headers:{'Content-Type':'multipart/related; boundary=c'}, body:'--c\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify({name:name.replace('job-', 'cancel-'), parents:[queue]})+'\r\n--c\r\nContent-Type: application/json\r\n\r\n{}\r\n--c--'});
+
+const studioRoot = '1O1MaAt1e0vX1EaLbIbyvaVWDwlVgXM61';
+async function studioRows() {
+  const dirs = await list("'"+studioRoot+"' in parents and mimeType = '"+folderType+"' and name = 'Fila de produção'");
+  if (!dirs.length) return [];
+  if (dirs.length !== 1) throw Error('Mais de uma fila YouTube Studio encontrada.');
+  const q = dirs[0].id, files = await list("'"+q+"' in parents"), byName = new Map(files.map(f=>[f.name,f]));
+  const result = [];
+  for (const job of files.filter(f=>/^[a-f0-9-]{36}\.json$/.test(f.name))) {
+    const id=job.name.slice(0,-5), data=await (await req(api+'/'+job.id+'?alt=media')).json();
+    const st=byName.get('status-'+id+'.json');
+    const status=st ? await (await req(api+'/'+st.id+'?alt=media')).json() : {state:'Na fila'};
+    const retry=byName.has('retry-'+id+'.json');
+    const r=document.createElement('div'); r.className='job';
+    const title=document.createElement('strong'); title.textContent='YouTube Studio · '+(data.title||data.videoId||id); r.append(title);
+    const p=document.createElement('p'); p.textContent=(retry?'Nova tentativa solicitada':status.state)+(status.current?' · Corte '+status.current+' de '+(status.total||data.cuts?.length):'')+(Number.isFinite(status.pct)?' · '+Math.round(status.pct)+'%':'')+(status.error?' · '+status.error:''); r.append(p);
+    if(Number.isFinite(status.pct)&&!DONE.includes(status.state)){const bar=document.createElement('div'),f=document.createElement('b');bar.className='bar';f.style.width=Math.max(0,Math.min(100,status.pct))+'%';bar.append(f);r.append(bar);}
+    if(status.state==='Falhou'&&!retry)r.append(button('Tentar novamente',async()=>{
+      const boundary='samuka_retry_'+crypto.randomUUID();
+      const body=[{name:'retry-'+id+'.json',parents:[q]},{}].map(part=>'--'+boundary+'\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(part)+'\r\n').join('')+'--'+boundary+'--';
+      await req('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+boundary},body});await refresh();
+    }));
+    for(const o of status.outputs||[]){if(!/^[A-Za-z0-9_-]+$/.test(o.file||''))continue;const a=document.createElement('a');a.href='https://drive.google.com/file/d/'+o.file+'/view';a.target='_blank';a.rel='noopener';a.textContent=o.title||o.name||'Abrir corte';const line=document.createElement('p');line.append(a);r.append(line);}
+    result.push({r,state:retry?'Na fila':status.state});
+  }
+  return result;
+}
+
 async function refresh() {
   if (!queue || busy) return; busy = true; const current = session;
   try {
@@ -142,6 +170,7 @@ async function refresh() {
       if (s.state === 'Pronto no Drive') ready++;
       rows.push(row(job, s));
     }
+    try { for(const x of await studioRows()){rows.push(x.r);if(!DONE.includes(x.state))active++;if(x.state==='Pronto no Drive')ready++;} } catch(e){const warning=document.createElement('p');warning.textContent='Fila YouTube Studio: '+e.message;rows.push(warning);}
     $('summary').textContent = rows.length ? active+' em andamento · '+ready+' prontos' : ''; $('badge').textContent = active; $('badge').hidden = !active;
     if (current === session) $('jobs').replaceChildren(...(rows.length ? rows : ['Nenhum pedido ainda.']));
   } finally { busy = false; }
