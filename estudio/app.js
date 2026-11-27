@@ -4,6 +4,16 @@ const folderType = 'application/vnd.google-apps.folder';
 const root = {id:'root',name:'Meu Drive'};
 let token = '', queue = '', trail = [root], selected, previewUrl, session = 0, busy = false;
 const cache = new Map();
+function folderControls(enabled) {
+  $('folder').disabled = !enabled;
+  $('newFolder').disabled = !enabled;
+  $('back').disabled = !enabled || trail.length < 2;
+}
+function disconnected() {
+  $('connect').textContent = 'Conectar Google';
+  folderControls(false);
+}
+
 const say = message => { $('message').textContent = message; };
 function action(id, fn) {
   $(id).onclick = async () => {
@@ -15,6 +25,7 @@ function action(id, fn) {
 async function req(url, options = {}) {
   if (!token) throw Error('Conecte sua conta Google.');
   const res = await fetch(url, {...options, headers:{...options.headers, Authorization:'Bearer '+token}});
+  if (res.status === 401) disconnected();
   if (!res.ok) throw Error(res.status === 401 ? 'Sessão expirada. Toque em Conectar Google.' : 'Google Drive retornou erro '+res.status+'. Tente novamente.');
   return res;
 }
@@ -36,6 +47,7 @@ async function connect() {
     scope:'https://www.googleapis.com/auth/drive',callback:resolve,error_callback:()=>reject(Error('Login interrompido.'))
   }).requestAccessToken());
   if (!result.access_token) throw Error('O Google não autorizou o acesso.');
+  disconnected();
   session++; token=result.access_token; queue=''; trail=[root]; selected=null; cache.clear();
   $('jobs').replaceChildren(); $('video').removeAttribute('src'); $('video').load();
   if(previewUrl) URL.revokeObjectURL(previewUrl);
@@ -43,18 +55,69 @@ async function connect() {
   queue = existing[0]?.id || (await (await req(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     name:'Samuka - Fila do Estúdio', mimeType:folderType, parents:['root'],appProperties:{samukaQueue:'v1'}
   })})).json()).id;
-  $('pair').value=queue; await folders(); await refresh(); say('Drive conectado. Escolha a pasta que receberá os vídeos.');
+  $('pair').value=queue; await folders(); $('connect').textContent='Drive conectado · trocar conta'; await refresh(); say('Drive conectado. Escolha a pasta que receberá os vídeos.');
 }
 async function folders() {
   const items=await list("'"+trail.at(-1).id+"' in parents and mimeType = '"+folderType+"'");
   $('folder').replaceChildren(new Option('Usar esta pasta',''),...items.filter(f=>f.id!==queue).sort((a,b)=>a.name.localeCompare(b.name)).map(f=>new Option(f.name,f.id)));
   $('path').textContent=trail.map(f=>f.name).join(' / ');
+  folderControls(true);
 }
-$('folder').onchange=async e=>{
-  const o=e.target.selectedOptions[0]; if(!o.value)return;
-  trail.push({id:o.value,name:o.text}); try{await folders();}catch(err){trail.pop();say(err.message);}
+async function navigate(nextTrail) {
+  const previous = trail;
+  trail = nextTrail;
+  folderControls(false);
+  try {
+    await folders();
+  } catch (error) {
+    trail = previous;
+    $('folder').selectedIndex = 0;
+    if (token && !error.message.includes('Sessão expirada')) folderControls(true);
+    say(error.message);
+  }
+}
+$('folder').onchange = event => {
+  const item = event.target.selectedOptions[0];
+  if (item.value) navigate([...trail, {id:item.value, name:item.text}]);
 };
-action('back',async()=>{if(trail.length>1)trail.pop();await folders();});
+$('back').onclick = () => {
+  if (trail.length > 1) navigate(trail.slice(0,-1));
+};
+$('newFolder').onclick = () => {
+  $('folderName').value = '';
+  $('folderError').textContent = '';
+  $('folderParent').textContent = 'Dentro de ' + trail.map(f=>f.name).join(' / ');
+  $('folderDialog').showModal();
+  $('folderName').focus();
+};
+$('cancelFolder').onclick = () => $('folderDialog').close();
+$('folderDialog').oncancel = event => {
+  if ($('createFolder').disabled) event.preventDefault();
+};
+$('folderForm').onsubmit = async event => {
+  event.preventDefault();
+  const name = $('folderName').value.trim();
+  if (!name || $('createFolder').disabled) return;
+  $('createFolder').disabled = $('cancelFolder').disabled = true;
+  try {
+    const parent = trail.at(-1);
+    const response = await req(api+'?fields=id,name', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name, mimeType:folderType, parents:[parent.id]})
+    });
+    const created = await response.json();
+    trail = [...trail, created];
+    $('folder').replaceChildren(new Option('Usar esta pasta',''));
+    $('path').textContent = trail.map(f=>f.name).join(' / ');
+    folderControls(true);
+    $('folderDialog').close();
+    say('Pasta criada e selecionada: '+created.name);
+  } catch (error) {
+    $('folderError').textContent = error.message;
+  } finally {
+    $('createFolder').disabled = $('cancelFolder').disabled = false;
+  }
+};
 function youtube(raw) {
   const u=new URL(raw);
   if(!['http:','https:'].includes(u.protocol))throw Error('Use um link do YouTube.');
