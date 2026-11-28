@@ -127,14 +127,17 @@ function row(job, s) {
 const submitCancel = async name => req('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {method:'POST', headers:{'Content-Type':'multipart/related; boundary=c'}, body:'--c\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify({name:name.replace('job-', 'cancel-'), parents:[queue]})+'\r\n--c\r\nContent-Type: application/json\r\n\r\n{}\r\n--c--'});
 
 const studioRoot = '1O1MaAt1e0vX1EaLbIbyvaVWDwlVgXM61';
+async function studioQueue(){
+  const dirs=await list("'"+studioRoot+"' in parents and mimeType = '"+folderType+"' and name = 'Fila de produção'");
+  if(dirs.length>1)throw Error('Mais de uma fila YouTube Studio encontrada.');
+  return dirs[0]?.id;
+}
 async function studioRows() {
-  const dirs = await list("'"+studioRoot+"' in parents and mimeType = '"+folderType+"' and name = 'Fila de produção'");
-  if (!dirs.length) return [];
-  if (dirs.length !== 1) throw Error('Mais de uma fila YouTube Studio encontrada.');
-  const q = dirs[0].id, files = await list("'"+q+"' in parents"), byName = new Map(files.map(f=>[f.name,f]));
+  const q=await studioQueue();if(!q)return [];
+  const files=await list("'"+q+"' in parents"),byName=new Map(files.map(f=>[f.name,f]));
   const result = [];
   for (const job of files.filter(f=>/^[a-f0-9-]{36}\.json$/.test(f.name))) {
-    const id=job.name.slice(0,-5), data=await (await req(api+'/'+job.id+'?alt=media')).json();
+    const id=job.name.slice(0,-5);if(byName.has('archived-'+id+'.json'))continue;const data=await (await req(api+'/'+job.id+'?alt=media')).json();
     const st=byName.get('status-'+id+'.json');
     const status=st ? await (await req(api+'/'+st.id+'?alt=media')).json() : {state:'Na fila'};
     const retry=byName.has('retry-'+id+'.json');
@@ -178,7 +181,7 @@ async function refresh() {
 action('connect', connect); action('refresh', refresh);
 action('clean', async () => {
   if (!queue) throw Error('Conecte o Drive primeiro.');
-  const files = await list("'"+queue+"' in parents"), names = new Set(files.map(f => f.name)); let n = 0;
+  const files = await list("'"+queue+"' in parents"); let n = 0;
   for (const job of files.filter(f => /^job-[a-f0-9-]+\.json$/.test(f.name))) {
     const st = files.find(f => f.name === job.name.replace('job-', 'status-')); if (!st) continue;
     const s = cache.get(st.id)?.data || await (await req(api+'/'+st.id+'?alt=media')).json();
@@ -186,6 +189,22 @@ action('clean', async () => {
     const id = job.name.slice(4, -5);
     for (const f of files.filter(f => [job.name, st.name, 'preview-'+id+'.mp4', 'strip-'+id+'.jpg', 'thumb-'+id+'.jpg', 'cancel-'+id+'.json'].includes(f.name))) await trash(f.id);
     n++;
+  }
+  const studio=await studioQueue();
+  if(studio){
+    const sf=await list("'"+studio+"' in parents"),byName=new Map(sf.map(f=>[f.name,f]));
+    for(const job of sf.filter(f=>/^[a-f0-9-]{36}\.json$/.test(f.name))){
+      const id=job.name.slice(0,-5),st=byName.get('status-'+id+'.json');
+      if(!st||byName.has('archived-'+id+'.json')||byName.has('retry-'+id+'.json'))continue;
+      const state=(await(await req(api+'/'+st.id+'?alt=media')).json()).state;
+      if(!DONE.includes(state))continue;
+      // Archive first so a delayed Worker status update cannot make this row reappear.
+      const boundary='samuka_archive_'+crypto.randomUUID();
+      const parts=[{name:'archived-'+id+'.json',parents:[studio],appProperties:{archivedJob:id}},{jobId:id,archivedAt:new Date().toISOString()}];
+      const body=parts.map(x=>'--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(x)+'\r\n').join('')+'--'+boundary+'--';
+      await req('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+boundary},body});
+      await trash(job.id);await trash(st.id);n++;
+    }
   }
   cache.clear(); say(n ? n+' concluído(s) removido(s) da fila. Os vídeos no Drive não foram alterados.' : 'Nada para limpar.'); await refresh();
 });
@@ -212,5 +231,5 @@ action('cut', async () => {
 setInterval(() => { if (!document.hidden) refresh().catch(e => say(e.message)); }, 15000);
 
 let contentRecords=[];let contentVersion=0;function renderContent(){const box=$('contentItems');const q=$('contentSearch').value.toLocaleLowerCase('pt-BR');box.replaceChildren();for(const d of contentRecords){for(const c of d.cuts||[]){if(![d.title,d.channel,c.title,c.hook,c.caption].join(' ').toLocaleLowerCase('pt-BR').includes(q))continue;const card=document.createElement('article');card.className='content-card';const heading=document.createElement('h3');heading.textContent=c.title||'Corte';card.append(heading);const meta=document.createElement('p');meta.textContent=[d.channel,d.title,Number.isFinite(c.score)?'Nota '+c.score+'/100':'',c.start+'s – '+c.end+'s'].filter(Boolean).join(' · ');card.append(meta);for(const [label,value] of [['Título',c.title],['Hook',c.hook],['Legenda',c.caption]]){if(!value)continue;const p=document.createElement('p');p.textContent=label+': '+value;card.append(p,button('Copiar '+label.toLowerCase(),async()=>{await navigator.clipboard.writeText(value);say(label+' copiado.')}));}if(!c.hook&&!c.caption){const p=document.createElement('p');p.textContent='Análise anterior ao Smart Content.';card.append(p)}box.append(card)}}if(!box.children.length)box.textContent='Nenhum conteúdo encontrado.';}
-async function loadContent(){const version=++contentVersion,account=session;contentRecords=[];$('contentItems').textContent='Carregando conteúdos…';try{const dirs=await list("'"+studioRoot+"' in parents and mimeType = '"+folderType+"' and name = 'Fila de produção'");if(dirs.length>1)throw Error('Mais de uma fila encontrada.');const records=[];if(dirs.length){const files=await list("'"+dirs[0].id+"' in parents");for(const f of files.filter(f=>/^[a-f0-9-]{36}\\.json$/.test(f.name)).sort((a,b)=>String(b.createdTime).localeCompare(String(a.createdTime)))){const d=await(await req(api+'/'+f.id+'?alt=media')).json();if(Array.isArray(d.cuts))records.push(d)}}if(version!==contentVersion||account!==session)return;contentRecords=records;renderContent()}catch(e){if(version===contentVersion&&account===session)$('contentItems').textContent=e.message;}}
+async function loadContent(){const version=++contentVersion,account=session;contentRecords=[];$('contentItems').textContent='Carregando conteúdos…';try{const dir=await studioQueue(),records=[];if(dir){const files=await list("'"+dir+"' in parents"),names=new Set(files.map(f=>f.name));for(const f of files.filter(f=>/^[a-f0-9-]{36}\.json$/.test(f.name)&&!names.has('archived-'+f.name.slice(0,-5)+'.json')).sort((a,b)=>String(b.createdTime).localeCompare(String(a.createdTime)))){const d=await(await req(api+'/'+f.id+'?alt=media')).json();if(Array.isArray(d.cuts))records.push(d)}}if(version!==contentVersion||account!==session)return;contentRecords=records;renderContent()}catch(e){if(version===contentVersion&&account===session)$('contentItems').textContent=e.message;}}
 $('contentSearch').oninput=renderContent;action('contentRefresh',loadContent);document.querySelector('#tabs [data-tab=content]').addEventListener('click',loadContent);$('connect').addEventListener('click',()=>{contentVersion++;contentRecords=[];$('contentItems').textContent='Conecte e atualize os conteúdos.'});
